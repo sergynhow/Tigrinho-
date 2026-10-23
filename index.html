@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>Jogo do Tigrinho - Caça-Níquel Tropical 3x3</title>
+
+  <!-- Meta PWA -->
+  <meta name="theme-color" content="#062e12" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="Jogo do Tigrinho - Caça-Níquel Slot Machine 3x3 com tema tropical, multipliers Wild, Loja PIX e áudio Web Audio API." />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts: Fredoka & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet" />
+
+  <style>
+    /* Estilos globais e reset para experiência de aplicativo mobile */
+    * {
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Fredoka', 'Inter', sans-serif;
+      background: radial-gradient(circle at center, #134e23 0%, #082910 65%, #031407 100%);
+      color: #ffffff;
+      overflow-x: hidden;
+      touch-action: manipulation;
+    }
+
+    /* Borda e gradiente dourado estilo cassino */
+    .gold-gradient-text {
+      background: linear-gradient(180deg, #fffbeb 0%, #facc15 35%, #ca8a04 70%, #854d0e 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.8));
+    }
+
+    .gold-border {
+      border: 3px solid #facc15;
+      box-shadow: 0 0 15px rgba(250, 204, 21, 0.4), inset 0 0 10px rgba(250, 204, 21, 0.2);
+    }
+
+    .wood-frame {
+      background: linear-gradient(145deg, #321908 0%, #522d0d 50%, #1f0f04 100%);
+      box-shadow: inset 0 0 15px #000, 0 12px 25px rgba(0,0,0,0.7);
+      border: 4px solid #d97706;
+    }
+
+    /* Container dos Rolos 3x3 */
+    .reel-viewport {
+      height: 270px;
+      overflow: hidden;
+      position: relative;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.2) 50%, rgba(0,0,0,0.6) 100%);
+      box-shadow: inset 0 0 18px rgba(0, 0, 0, 0.9);
+    }
+
+    .reel-strip {
+      display: flex;
+      flex-direction: column;
+      position: absolute;
+      width: 100%;
+      top: 0;
+      left: 0;
+      will-change: transform;
+    }
+
+    .symbol-card {
+      height: 90px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      transition: transform 0.2s ease, filter 0.2s ease;
+    }
+
+    .symbol-card.winning {
+      animation: pulse-win 0.6s infinite alternate ease-in-out;
+      z-index: 10;
+    }
+
+    @keyframes pulse-win {
+      0% { transform: scale(0.92); filter: drop-shadow(0 0 8px #facc15); }
+      100% { transform: scale(1.08); filter: drop-shadow(0 0 20px #22c55e); }
+    }
+
+    /* Animação do Botão Girar */
+    .btn-spin {
+      background: linear-gradient(180deg, #fb923c 0%, #ea580c 50%, #c2410c 100%);
+      border: 4px solid #fef08a;
+      box-shadow: 0 8px 0 #7c2d12, 0 12px 20px rgba(0,0,0,0.6), inset 0 4px 6px rgba(255,255,255,0.4);
+      transition: all 0.1s ease;
+    }
+
+    .btn-spin:active:not(:disabled) {
+      transform: translateY(6px);
+      box-shadow: 0 2px 0 #7c2d12, 0 4px 10px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.2);
+    }
+
+    .btn-spin:disabled {
+      opacity: 0.6;
+      filter: grayscale(0.5);
+      cursor: not-allowed;
+    }
+
+    .blur-spin {
+      filter: blur(4px);
+    }
+
+    /* Modal Backdrop */
+    .modal-backdrop {
+      background: rgba(2, 20, 8, 0.92);
+      backdrop-filter: blur(8px);
+    }
+
+    /* Canvas de partículas e linhas de vitória */
+    #fxCanvas, #paylinesCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      width: 100%;
+      height: 100%;
+    }
+
+    #paylinesCanvas {
+      z-index: 25;
+    }
+
+    #fxCanvas {
+      z-index: 45;
+    }
+  </style>
+</head>
+<body class="min-h-full flex flex-col justify-center items-center p-2 sm:p-4">
+
+  <!-- ================= TELA INICIAL / SPLASH ================= -->
+  <div id="splashScreen" class="fixed inset-0 z-50 flex flex-col items-center justify-between p-6 text-center bg-gradient-to-b from-emerald-950 via-emerald-900 to-black">
+    <div class="mt-8 relative">
+      <div class="text-8xl mb-3 animate-bounce">🐯</div>
+      <h1 class="text-4xl sm:text-5xl font-black gold-gradient-text tracking-wider uppercase">
+        JOGO DO<br/>TIGRINHO
+      </h1>
+      <p class="text-emerald-300 text-xs sm:text-sm font-semibold mt-2 tracking-widest uppercase">Caça-Níquel Tropical 3x3</p>
+    </div>
+
+    <div class="w-full max-w-xs space-y-4 my-auto">
+      <div class="bg-emerald-900/70 p-4 rounded-2xl border border-emerald-500/30 text-emerald-100 text-xs sm:text-sm shadow-xl">
+        <p class="font-bold text-yellow-300 mb-1">🌟 Sorte Grande no Tigrinho!</p>
+        <p>Alinhe 3 símbolos nas linhas premiadas e aproveite o 🐯 <b>Tigrinho Curinga (Wild)</b> para multiplicar em até <b>50x</b>!</p>
+      </div>
+
+      <button id="btnStartGame" class="w-full py-4 text-2xl font-black text-amber-950 uppercase tracking-wider rounded-2xl bg-gradient-to-b from-yellow-300 via-amber-400 to-yellow-500 border-4 border-yellow-100 shadow-[0_6px_0_#b45309] active:translate-y-1 active:shadow-none transition-all">
+        ENTRAR NO JOGO
+      </button>
+    </div>
+
+    <div class="text-xs text-emerald-500/80">
+      v2.2 • HTML5 & Loja PIX Ativa
+    </div>
+  </div>
+
+  <!-- ================= INTERFACE PRINCIPAL DO JOGO ================= -->
+  <div class="w-full max-w-md min-h-[95vh] flex flex-col justify-between p-2 sm:p-3 relative overflow-hidden my-auto">
+
+    <!-- Top Bar: Header, Controles e Som -->
+    <header class="flex items-center justify-between bg-emerald-950/80 backdrop-blur-md p-2.5 rounded-2xl border border-emerald-700/50 shadow-lg z-20">
+      <div class="flex items-center space-x-2">
+        <span class="text-3xl">🐯</span>
+        <div>
+          <h2 class="text-base font-black gold-gradient-text leading-none uppercase">TIGRINHO</h2>
+          <span class="text-[10px] text-emerald-400 font-medium tracking-wide">SLOT TROPICAL 3x3</span>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-1.5">
+        <button id="btnPaytable" class="p-2 bg-emerald-800/80 hover:bg-emerald-700 rounded-xl border border-emerald-500/40 text-yellow-300 text-xs font-bold flex items-center space-x-1 shadow">
+          <span>📜</span>
+          <span class="hidden sm:inline">Tabela</span>
+        </button>
+
+        <button id="btnHistory" class="p-2 bg-emerald-800/80 hover:bg-emerald-700 rounded-xl border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center shadow">
+          <span>🕒</span>
+        </button>
+
+        <button id="btnToggleSound" class="p-2 bg-emerald-800/80 hover:bg-emerald-700 rounded-xl border border-emerald-500/40 text-yellow-300 text-xs font-bold flex items-center shadow">
+          <span id="soundIcon">🔊</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Banner de Status / Mensagens de Vitória -->
+    <div id="winBanner" class="my-2 h-11 flex items-center justify-center bg-gradient-to-r from-amber-500/20 via-yellow-500/40 to-amber-500/20 rounded-xl border border-yellow-500/30 transition-all duration-300 px-3">
+      <span id="winBannerText" class="text-xs sm:text-sm font-bold text-yellow-200 tracking-wide text-center">
+        🍀 Defina a sua aposta e clique em GIRAR!
+      </span>
+    </div>
+
+    <!-- MÁQUINA DE SLOTS (CABINET) -->
+    <main class="relative w-full wood-frame rounded-3xl p-3 my-auto flex flex-col items-center">
+
+      <div class="relative w-full bg-emerald-950 rounded-2xl p-2 gold-border overflow-hidden">
+        <!-- Canvas para linhas premiadas -->
+        <canvas id="paylinesCanvas"></canvas>
+
+        <div class="grid grid-cols-3 gap-2 relative z-10">
+          <!-- Rolo 1 -->
+          <div class="reel-viewport" id="reelViewport0">
+            <div class="reel-strip" id="reelStrip0"></div>
+          </div>
+          <!-- Rolo 2 -->
+          <div class="reel-viewport" id="reelViewport1">
+            <div class="reel-strip" id="reelStrip1"></div>
+          </div>
+          <!-- Rolo 3 -->
+          <div class="reel-viewport" id="reelViewport2">
+            <div class="reel-strip" id="reelStrip2"></div>
+          </div>
+        </div>
+
+        <!-- Indicadores de Linhas Laterais -->
+        <div class="absolute left-0 top-0 bottom-0 flex flex-col justify-around py-3 px-0.5 z-20 pointer-events-none">
+          <span class="w-4 h-4 rounded-full bg-amber-500 text-amber-950 font-black text-[9px] flex items-center justify-center shadow">1</span>
+          <span class="w-4 h-4 rounded-full bg-amber-500 text-amber-950 font-black text-[9px] flex items-center justify-center shadow">2</span>
+          <span class="w-4 h-4 rounded-full bg-amber-500 text-amber-950 font-black text-[9px] flex items-center justify-center shadow">3</span>
+        </div>
+        <div class="absolute right-0 top-0 bottom-0 flex flex-col justify-around py-3 px-0.5 z-20 pointer-events-none">
+          <span class="w-4 h-4 rounded-full bg-amber-500 text-amber-950 font-black text-[9px] flex items-center justify-center shadow">1</span>
+          <span class="w-4 h-4 rounded-full bg-amber-500 text-amber-950 font-black text-[9px] flex items-center justify-center shadow">2</span>
+          <span class="w-4 h-4 rounded-full bg-amber-500 text-amber-950 font-black text-[9px] flex items-center justify-center shadow">3</span>
+        </div>
+      </div>
+
+      <!-- Displays de Saldo e Último Ganho -->
+      <div class="w-full grid grid-cols-2 gap-2 mt-3">
+        <div class="bg-black/70 p-2 rounded-xl border border-amber-500/40 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] text-amber-400 font-bold uppercase block">Saldo</span>
+            <div class="flex items-center space-x-1">
+              <span class="text-base">🪙</span>
+              <span id="balanceDisplay" class="text-base font-black text-yellow-300">100</span>
+            </div>
+          </div>
+          <button id="btnRecharge" class="px-2 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 hover:brightness-110 text-white font-bold text-[10px] rounded-lg shadow border border-emerald-300 active:scale-95 flex items-center space-x-0.5">
+            <span>⚡</span>
+            <span>PIX</span>
+          </button>
+        </div>
+
+        <div class="bg-black/70 p-2 rounded-xl border border-amber-500/40 flex flex-col justify-center text-right">
+          <span class="text-[10px] text-emerald-400 font-bold uppercase block">Último Ganho</span>
+          <div class="flex items-center justify-end space-x-1">
+            <span id="lastWinDisplay" class="text-base font-black text-emerald-300">+0</span>
+            <span class="text-base">✨</span>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- PAINEL DE CONTROLES -->
+    <footer class="w-full bg-emerald-950/90 backdrop-blur-md p-3 rounded-2xl border border-emerald-700/50 mt-2 flex flex-col space-y-2.5 z-20">
+      <div class="flex items-center justify-between bg-black/50 p-2 rounded-xl border border-emerald-800">
+        <span class="text-xs font-bold text-amber-300 uppercase">Aposta:</span>
+        <div class="flex items-center space-x-1.5" id="betSelectorGroup">
+          <button data-bet="1" class="bet-btn px-3 py-1.5 rounded-lg font-black text-xs bg-amber-500 text-amber-950 shadow border border-amber-300">1</button>
+          <button data-bet="5" class="bet-btn px-3 py-1.5 rounded-lg font-black text-xs bg-emerald-800 text-emerald-200 border border-emerald-600">5</button>
+          <button data-bet="10" class="bet-btn px-3 py-1.5 rounded-lg font-black text-xs bg-emerald-800 text-emerald-200 border border-emerald-600">10</button>
+          <button data-bet="25" class="bet-btn px-3 py-1.5 rounded-lg font-black text-xs bg-emerald-800 text-emerald-200 border border-emerald-600">25</button>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-3">
+        <button id="btnAutoSpin" class="flex-1 py-3.5 bg-emerald-800 hover:bg-emerald-700 border-2 border-emerald-500/50 rounded-2xl font-extrabold text-xs text-emerald-100 flex flex-col items-center justify-center shadow active:scale-95">
+          <span class="text-lg leading-none">🔄</span>
+          <span id="autoSpinText" class="mt-0.5">AUTO</span>
+        </button>
+
+        <button id="btnSpin" class="flex-[2] py-3.5 rounded-2xl btn-spin font-black text-2xl text-yellow-100 tracking-wider flex items-center justify-center space-x-2">
+          <span>GIRAR</span>
+          <span class="text-xl">🎰</span>
+        </button>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- CANVAS PARA CONFETES E MOEDAS -->
+  <canvas id="fxCanvas"></canvas>
+
+  <!-- ================= MODAL TABELA DE PAGAMENTOS ================= -->
+  <div id="paytableModal" class="fixed inset-0 z-50 modal-backdrop hidden flex items-center justify-center p-4">
+    <div class="bg-gradient-to-b from-emerald-900 to-emerald-950 border-2 border-amber-400 rounded-3xl p-5 w-full max-w-sm text-center shadow-2xl relative max-h-[85vh] overflow-y-auto">
+      <button id="btnClosePaytable" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-600 text-white font-black text-sm flex items-center justify-center shadow">✕</button>
+
+      <h3 class="text-2xl font-black gold-gradient-text uppercase mb-1">Tabela de Pagamentos</h3>
+      <p class="text-xs text-emerald-300 mb-4">Pagamentos por alinhamento de 3 símbolos iguais</p>
+
+      <div class="space-y-2 text-left">
+        <div class="flex items-center justify-between bg-black/40 p-2.5 rounded-xl border border-amber-500/40">
+          <div class="flex items-center space-x-2.5">
+            <span class="text-3xl">🐯</span>
+            <div>
+              <span class="font-bold text-amber-300 text-sm block">Tigrinho (Wild)</span>
+              <span class="text-[10px] text-emerald-300">Substitui qualquer símbolo</span>
+            </div>
+          </div>
+          <span class="font-black text-amber-400 text-base">3x = 50x</span>
+        </div>
+
+        <div class="flex items-center justify-between bg-black/30 p-2.5 rounded-xl border border-emerald-800">
+          <div class="flex items-center space-x-2.5">
+            <span class="text-3xl">🪙</span>
+            <span class="font-bold text-emerald-100 text-sm">Moeda de Ouro</span>
+          </div>
+          <span class="font-black text-yellow-300 text-sm">3x = 20x</span>
+        </div>
+
+        <div class="flex items-center justify-between bg-black/30 p-2.5 rounded-xl border border-emerald-800">
+          <div class="flex items-center space-x-2.5">
+            <span class="text-3xl">👑</span>
+            <span class="font-bold text-emerald-100 text-sm">Coroa Imperial</span>
+          </div>
+          <span class="font-black text-yellow-300 text-sm">3x = 15x</span>
+        </div>
+
+        <div class="flex items-center justify-between bg-black/30 p-2.5 rounded-xl border border-emerald-800">
+          <div class="flex items-center space-x-2.5">
+            <span class="text-3xl">🥭</span>
+            <span class="font-bold text-emerald-100 text-sm">Fruta Tropical</span>
+          </div>
+          <span class="font-black text-yellow-300 text-sm">3x = 10x</span>
+        </div>
+
+        <div class="flex items-center justify-between bg-black/30 p-2.5 rounded-xl border border-emerald-800">
+          <div class="flex items-center space-x-2.5">
+            <span class="text-3xl">🎋</span>
+            <span class="font-bold text-emerald-100 text-sm">Bambu da Sorte</span>
+          </div>
+          <span class="font-black text-yellow-300 text-sm">3x = 5x</span>
+        </div>
+
+        <div class="flex items-center justify-between bg-black/30 p-2.5 rounded-xl border border-emerald-800">
+          <div class="flex items-center space-x-2.5">
+            <span class="text-3xl">🐾</span>
+            <span class="font-bold text-emerald-100 text-sm">Pata de Tigre</span>
+          </div>
+          <span class="font-black text-yellow-300 text-sm">3x = 3x</span>
+        </div>
+      </div>
+
+      <button id="btnOkPaytable" class="mt-4 w-full py-2.5 bg-yellow-500 hover:bg-yellow-400 text-amber-950 font-black rounded-xl uppercase text-xs">
+        ENTENDIDO
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= MODAL RECARGA / LOJA PIX DE MOEDAS ================= -->
+  <div id="rechargeModal" class="fixed inset-0 z-50 modal-backdrop hidden flex items-center justify-center p-3 sm:p-4">
+    <div class="bg-gradient-to-b from-emerald-900 to-emerald-950 border-2 border-yellow-400 rounded-3xl p-4 sm:p-5 w-full max-w-md text-center shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      <button id="btnCloseRecharge" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-600 text-white font-black text-sm flex items-center justify-center shadow">✕</button>
+
+      <div class="text-3xl mb-1">⚡ 🪙</div>
+      <h3 class="text-2xl font-black gold-gradient-text uppercase mb-1">Loja de Moedas PIX</h3>
+      <p class="text-xs text-emerald-300 mb-3">Escolha um dos pacotes para comprar moedas com seu PIX:</p>
+
+      <!-- Botões de Pacotes PIX Reais -->
+      <div class="grid grid-cols-3 gap-1.5 sm:gap-2 mb-3">
+        <button onclick="selectPixPackage(0)" id="pixBtn0" class="pix-pkg-btn p-2 bg-emerald-800 border-2 border-yellow-400 rounded-2xl flex flex-col items-center transition-all">
+          <span class="text-[11px] font-bold text-emerald-200">500 Moedas</span>
+          <span class="font-black text-yellow-300 text-sm my-0.5">R$ 5,00</span>
+          <span class="text-[9px] bg-yellow-500/20 text-yellow-300 px-1 py-0.5 rounded-full font-semibold">Básico</span>
+        </button>
+
+        <button onclick="selectPixPackage(1)" id="pixBtn1" class="pix-pkg-btn p-2 bg-emerald-950 border-2 border-emerald-800 rounded-2xl flex flex-col items-center transition-all opacity-80">
+          <span class="text-[11px] font-bold text-emerald-200">1.200 Moedas</span>
+          <span class="font-black text-yellow-300 text-sm my-0.5">R$ 10,00</span>
+          <span class="text-[9px] bg-emerald-500/20 text-emerald-300 px-1 py-0.5 rounded-full font-semibold">+20% Bônus</span>
+        </button>
+
+        <button onclick="selectPixPackage(2)" id="pixBtn2" class="pix-pkg-btn p-2 bg-emerald-950 border-2 border-emerald-800 rounded-2xl flex flex-col items-center transition-all opacity-80">
+          <span class="text-[11px] font-bold text-emerald-200">3.000 Moedas</span>
+          <span class="font-black text-yellow-300 text-sm my-0.5">R$ 20,00</span>
+          <span class="text-[9px] bg-amber-500/30 text-amber-300 px-1 py-0.5 rounded-full font-bold">👑 VIP</span>
+        </button>
+      </div>
+
+      <!-- Detalhes do Pagamento PIX -->
+      <div id="pixCheckoutContainer" class="bg-black/60 p-3 sm:p-4 rounded-2xl border border-yellow-500/40 text-left space-y-2.5">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-amber-300 uppercase" id="pixSelectedTitle">Pacote R$ 5,00</span>
+          <span class="text-[10px] bg-emerald-900 text-emerald-300 px-2 py-0.5 rounded-full font-semibold">PagSeguro PIX</span>
+        </div>
+
+        <!-- Área do QR Code com fallback de imagem instantânea -->
+        <div class="flex flex-col items-center justify-center p-2.5 bg-white rounded-xl shadow-inner my-1">
+          <img id="qrcodeImg" src="" alt="QR Code PIX" class="w-36 h-36 object-contain rounded" />
+          <p class="text-[10px] text-gray-700 font-bold mt-1">Escaneie este QR Code no aplicativo do seu banco</p>
+        </div>
+
+        <!-- Código PIX Copia e Cola -->
+        <div>
+          <label class="text-[11px] font-bold text-emerald-200 block mb-1">Chave PIX (Copia e Cola):</label>
+          <div class="flex items-center space-x-2">
+            <input id="pixPayloadInput" type="text" readonly class="w-full bg-emerald-950 border border-emerald-700 text-xs text-yellow-200 p-2 rounded-xl font-mono truncate" />
+            <button id="btnCopyPix" onclick="copyPixCode()" class="px-3 py-2 bg-yellow-500 hover:bg-yellow-400 active:bg-yellow-600 text-amber-950 font-black text-xs rounded-xl shadow whitespace-nowrap active:scale-95 transition-all">
+              📋 Copiar
+            </button>
+          </div>
+          <p id="copyStatusText" class="text-[11px] text-yellow-300 font-bold mt-1 h-4 transition-all"></p>
+        </div>
+
+        <div class="text-[11px] text-emerald-200/90 bg-emerald-900/50 p-2 rounded-xl border border-emerald-700/50">
+          <p>👤 <b>Titular:</b> SERGIO LUIS SANTOS BRASIL</p>
+          <p>🏦 <b>Pagamento:</b> PagSeguro Internet IP S.A.</p>
+        </div>
+
+        <!-- Botão de Confirmação Instantânea -->
+        <button id="btnConfirmPixPayment" class="w-full py-2 bg-gradient-to-r from-emerald-500 to-teal-400 hover:brightness-110 active:scale-95 text-emerald-950 font-black rounded-xl uppercase tracking-wider text-[11px] shadow-lg transition-all">
+          ✅ JÁ PAGUEI / CONFIRMAR DEPÓSITO
+        </button>
+      </div>
+
+      <button id="btnFreeCoins" class="mt-2.5 w-full py-2 bg-gradient-to-r from-amber-600 to-yellow-500 hover:brightness-110 text-amber-950 font-black rounded-xl uppercase shadow text-[11px]">
+        🎁 BÔNUS GRÁTIS (+200 MOEDAS)
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= MODAL HISTÓRICO DE RODADAS ================= -->
+  <div id="historyModal" class="fixed inset-0 z-50 modal-backdrop hidden flex items-center justify-center p-4">
+    <div class="bg-gradient-to-b from-emerald-900 to-emerald-950 border-2 border-emerald-500 rounded-3xl p-5 w-full max-w-sm text-center shadow-2xl relative max-h-[80vh] flex flex-col">
+      <button id="btnCloseHistory" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-red-600 text-white font-black text-sm flex items-center justify-center shadow">✕</button>
+
+      <h3 class="text-xl font-black text-emerald-200 uppercase mb-3">Histórico de Jogadas</h3>
+
+      <div id="historyList" class="flex-1 overflow-y-auto space-y-2 text-left pr-1 my-2">
+        <!-- Inserido dinamicamente -->
+      </div>
+
+      <button id="btnClearHistory" class="mt-2 py-2 bg-emerald-800 hover:bg-emerald-700 text-emerald-200 font-bold text-xs rounded-xl">
+        Limpar Histórico
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= MODAL SUPER GANHO (BIG WIN) ================= -->
+  <div id="bigWinModal" class="fixed inset-0 z-50 modal-backdrop hidden flex flex-col items-center justify-center p-4 text-center">
+    <div class="bg-gradient-to-b from-amber-500 via-yellow-500 to-amber-600 border-4 border-yellow-100 rounded-3xl p-6 w-full max-w-xs shadow-[0_0_50px_rgba(250,204,21,0.8)] animate-bounce">
+      <div class="text-6xl mb-2">🐯🎉</div>
+      <h2 class="text-3xl font-black text-amber-950 uppercase tracking-wider">SUPER GANHO!</h2>
+      <p id="bigWinMultiplierText" class="text-lg font-bold text-white my-1">Multiplicador 50x!</p>
+      <div id="bigWinAmountText" class="text-4xl font-black text-amber-950 my-2">+500 Moedas</div>
+
+      <button id="btnCloseBigWin" class="mt-4 w-full py-3 bg-amber-950 hover:bg-black text-yellow-300 font-black rounded-2xl uppercase tracking-wider shadow-lg">
+        RECEBER PRÊMIO!
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= JAVASCRIPT DO JOGO ================= -->
+  <script>
+    /* ===================================================================
+       1. CONFIGURAÇÃO DE SÍMBOLOS & PESOS
+       =================================================================== */
+    const SYMBOLS = [
+      { id: 'tiger',  name: 'Tigrinho', icon: '🐯', mult: 50, wild: true,  weight: 1 },
+      { id: 'coin',   name: 'Moeda',    icon: '🪙', mult: 20, wild: false, weight: 3 },
+      { id: 'crown',  name: 'Coroa',    icon: '👑', mult: 15, wild: false, weight: 4 },
+      { id: 'fruit',  name: 'Fruta',    icon: '🥭', mult: 10, wild: false, weight: 6 },
+      { id: 'bamboo', name: 'Bambu',    icon: '🎋', mult: 5,  wild: false, weight: 8 },
+      { id: 'paw',    name: 'Pata',     icon: '🐾', mult: 3,  wild: false, weight: 10 }
+    ];
+
+    const WEIGHTED_POOL = [];
+    SYMBOLS.forEach(sym => {
+      for (let i = 0; i < sym.weight; i++) {
+        WEIGHTED_POOL.push(sym);
+      }
+    });
+
+    const PAYLINES = [
+      { name: 'Linha Superior',   indices: [0, 1, 2] },
+      { name: 'Linha Central',    indices: [3, 4, 5] },
+      { name: 'Linha Inferior',   indices: [6, 7, 8] },
+      { name: 'Diagonal ↘',       indices: [0, 4, 8] },
+      { name: 'Diagonal ↗',       indices: [6, 4, 2] }
+    ];
+
+    /* ===================================================================
+       2. ESTADO DO JOGO
+       =================================================================== */
+    let state = {
+      balance: 100,
+      currentBet: 1,
+      isSpinning: false,
+      autoSpin: false,
+      soundEnabled: true,
+      lastWin: 0,
+      history: [],
+      gridState: [SYMBOLS[0], SYMBOLS[1], SYMBOLS[2],
+                  SYMBOLS[3], SYMBOLS[4], SYMBOLS[5],
+                  SYMBOLS[0], SYMBOLS[1], SYMBOLS[2]]
+    };
+
+    /* ===================================================================
+       3. SINTETIZADOR DE ÁUDIO WEB AUDIO API (SEM ARQUIVOS EXTERNOS)
+       =================================================================== */
+    class SoundManager {
+      constructor() {
+        this.ctx = null;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioCtx();
+        }
+      }
+
+      playClick() {
+        if (!state.soundEnabled) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(200, this.ctx.currentTime + 0.05);
+        gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.05);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.05);
+      }
+
+      playSpinTick() {
+        if (!state.soundEnabled) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(160 + Math.random() * 40, this.ctx.currentTime);
+        gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.03);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.03);
+      }
+
+      playWin(multiplier) {
+        if (!state.soundEnabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const notes = multiplier >= 15 ? [261, 329, 392, 523, 659, 783, 1046] : [329, 392, 523];
+        notes.forEach((freq, index) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + index * 0.08);
+          gain.gain.setValueAtTime(0.25, now + index * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.08 + 0.3);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + index * 0.08);
+          osc.stop(now + index * 0.08 + 0.3);
+        });
+      }
+
+      playLose() {
+        if (!state.soundEnabled) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(110, this.ctx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, this.ctx.currentTime + 0.25);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.25);
+      }
+    }
+
+    const audio = new SoundManager();
+
+    /* ===================================================================
+       4. ANIMAÇÃO E MONTAGEM DOS ROLOS
+       =================================================================== */
+    const reelStrips = [
+      document.getElementById('reelStrip0'),
+      document.getElementById('reelStrip1'),
+      document.getElementById('reelStrip2')
+    ];
+
+    function createSymbolCardHTML(symbol) {
+      return `
+        <div class="symbol-card">
+          <span class="text-4xl filter drop-shadow-md">${symbol.icon}</span>
+          <span class="text-[10px] font-bold text-amber-200 uppercase tracking-tighter mt-1">${symbol.name}</span>
+        </div>
+      `;
+    }
+
+    function initReels() {
+      for (let r = 0; r < 3; r++) {
+        let html = '';
+        for (let i = 0; i < 20; i++) {
+          const sym = WEIGHTED_POOL[Math.floor(Math.random() * WEIGHTED_POOL.length)];
+          html += createSymbolCardHTML(sym);
+        }
+        reelStrips[r].innerHTML = html;
+        reelStrips[r].style.transform = 'translateY(0px)';
+      }
+    }
+
+    function getRandomSymbol() {
+      return WEIGHTED_POOL[Math.floor(Math.random() * WEIGHTED_POOL.length)];
+    }
+
+    async function spin() {
+      if (state.isSpinning) return;
+
+      if (state.balance < state.currentBet) {
+        showWinBanner('⚠️ Saldo insuficiente! Compre moedas no PIX.', 'text-red-400');
+        state.autoSpin = false;
+        updateAutoSpinUI();
+        document.getElementById('rechargeModal').classList.remove('hidden');
+        selectPixPackage(0);
+        return;
+      }
+
+      state.isSpinning = true;
+      state.balance -= state.currentBet;
+      updateUI();
+      clearPaylines();
+      audio.playClick();
+
+      showWinBanner('🎰 Girando os rolos... Boa sorte!', 'text-yellow-200');
+      document.getElementById('btnSpin').disabled = true;
+
+      const finalGrid = [];
+      for (let i = 0; i < 9; i++) {
+        finalGrid.push(getRandomSymbol());
+      }
+
+      const spinPromises = [0, 1, 2].map((reelIdx) => {
+        return animateReel(reelIdx, [
+          finalGrid[reelIdx],
+          finalGrid[reelIdx + 3],
+          finalGrid[reelIdx + 6]
+        ], reelIdx * 200);
+      });
+
+      await Promise.all(spinPromises);
+
+      state.gridState = finalGrid;
+      state.isSpinning = false;
+      document.getElementById('btnSpin').disabled = false;
+
+      evaluateResult();
+
+      if (state.autoSpin) {
+        setTimeout(() => {
+          if (state.autoSpin) spin();
+        }, 1000);
+      }
+    }
+
+    function animateReel(reelIdx, target3Symbols, delayMs) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          const strip = reelStrips[reelIdx];
+          const intervalTick = setInterval(() => audio.playSpinTick(), 80);
+
+          let stripHTML = '';
+          for (let i = 0; i < 15; i++) {
+            stripHTML += createSymbolCardHTML(getRandomSymbol());
+          }
+          target3Symbols.forEach(sym => {
+            stripHTML += createSymbolCardHTML(sym);
+          });
+
+          strip.innerHTML = stripHTML;
+          strip.classList.add('blur-spin');
+
+          const cardHeight = 90;
+          const totalDistance = 15 * cardHeight;
+
+          strip.style.transition = 'none';
+          strip.style.transform = 'translateY(0px)';
+          strip.offsetHeight;
+
+          strip.style.transition = 'transform 1.2s cubic-bezier(0.15, 0.9, 0.2, 1)';
+          strip.style.transform = `translateY(-${totalDistance}px)`;
+
+          setTimeout(() => {
+            clearInterval(intervalTick);
+            strip.classList.remove('blur-spin');
+            audio.playSpinTick();
+            resolve();
+          }, 1200);
+
+        }, delayMs);
+      });
+    }
+
+    /* ===================================================================
+       5. AVALIAÇÃO DAS LINHAS PREMIADAS & WILD
+       =================================================================== */
+    function evaluateResult() {
+      let totalMultiplier = 0;
+      const winningLines = [];
+      const winningSymbolIndices = new Set();
+
+      PAYLINES.forEach((line) => {
+        const [i1, i2, i3] = line.indices;
+        const s1 = state.gridState[i1];
+        const s2 = state.gridState[i2];
+        const s3 = state.gridState[i3];
+
+        const lineSymbols = [s1, s2, s3];
+        const nonWild = lineSymbols.find(s => !s.wild);
+
+        let is3OfAKind = false;
+        let lineMult = 0;
+
+        if (!nonWild) {
+          is3OfAKind = true;
+          lineMult = SYMBOLS.find(s => s.id === 'tiger').mult;
+        } else {
+          is3OfAKind = lineSymbols.every(s => s.id === nonWild.id || s.wild);
+          if (is3OfAKind) {
+            lineMult = nonWild.mult;
+          }
+        }
+
+        if (is3OfAKind) {
+          totalMultiplier += lineMult;
+          winningLines.push({ line, mult: lineMult });
+          line.indices.forEach(idx => winningSymbolIndices.add(idx));
+        } else {
+          let match2 = false;
+          if ((s1.id === s2.id || s1.wild || s2.wild) && s1.id !== 'paw') match2 = true;
+          if ((s2.id === s3.id || s2.wild || s3.wild) && s2.id !== 'paw') match2 = true;
+
+          if (match2) {
+            totalMultiplier += 1;
+            winningLines.push({ line, mult: 1 });
+            line.indices.forEach(idx => winningSymbolIndices.add(idx));
+          }
+        }
+      });
+
+      const winAmount = totalMultiplier * state.currentBet;
+      state.lastWin = winAmount;
+      state.balance += winAmount;
+
+      state.history.unshift({
+        bet: state.currentBet,
+        win: winAmount,
+        mult: totalMultiplier,
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      });
+      if (state.history.length > 20) state.history.pop();
+
+      updateUI();
+
+      if (winAmount > 0) {
+        audio.playWin(totalMultiplier);
+        highlightWinningSymbols(winningSymbolIndices);
+        drawPaylines(winningLines);
+        triggerWinFX();
+
+        if (totalMultiplier >= 15) {
+          showBigWinModal(totalMultiplier, winAmount);
+        } else {
+          showWinBanner(`🎉 VITÓRIA! Ganhou ${winAmount} Moedas (${totalMultiplier}x)!`, 'text-yellow-300 font-bold');
+        }
+      } else {
+        audio.playLose();
+        showWinBanner('Tente novamente! O Tigrinho está preparando a sorte 🐯', 'text-emerald-300');
+      }
+    }
+
+    /* ===================================================================
+       6. CANVASES & EFEITOS DE PARTÍCULAS
+       =================================================================== */
+    const paylinesCanvas = document.getElementById('paylinesCanvas');
+    const paylinesCtx = paylinesCanvas.getContext('2d');
+
+    function resizeCanvas() {
+      const rect = paylinesCanvas.parentElement.getBoundingClientRect();
+      paylinesCanvas.width = rect.width;
+      paylinesCanvas.height = rect.height;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    setTimeout(resizeCanvas, 100);
+
+    function clearPaylines() {
+      paylinesCtx.clearRect(0, 0, paylinesCanvas.width, paylinesCanvas.height);
+      document.querySelectorAll('.symbol-card').forEach(el => el.classList.remove('winning'));
+    }
+
+    function drawPaylines(winningLines) {
+      resizeCanvas();
+      clearPaylines();
+
+      const w = paylinesCanvas.width;
+      const h = paylinesCanvas.height;
+
+      const colX = [w * 0.18, w * 0.5, w * 0.82];
+      const rowY = [h * 0.18, h * 0.5, h * 0.82];
+
+      winningLines.forEach(({ line }) => {
+        paylinesCtx.beginPath();
+        paylinesCtx.lineWidth = 5;
+        paylinesCtx.strokeStyle = '#facc15';
+        paylinesCtx.shadowColor = '#22c55e';
+        paylinesCtx.shadowBlur = 12;
+
+        const coords = line.indices.map(idx => {
+          const r = Math.floor(idx / 3);
+          const c = idx % 3;
+          return { x: colX[c], y: rowY[r] };
+        });
+
+        paylinesCtx.moveTo(coords[0].x, coords[0].y);
+        paylinesCtx.lineTo(coords[1].x, coords[1].y);
+        paylinesCtx.lineTo(coords[2].x, coords[2].y);
+        paylinesCtx.stroke();
+      });
+    }
+
+    function highlightWinningSymbols(indicesSet) {
+      indicesSet.forEach(idx => {
+        const reelIdx = idx % 3;
+        const rowIdx = Math.floor(idx / 3);
+        const strip = reelStrips[reelIdx];
+        const cards = strip.querySelectorAll('.symbol-card');
+        const targetCard = cards[cards.length - 3 + rowIdx];
+        if (targetCard) {
+          targetCard.classList.add('winning');
+        }
+      });
+    }
+
+    /* Partículas de Vitória */
+    const fxCanvas = document.getElementById('fxCanvas');
+    const fxCtx = fxCanvas.getContext('2d');
+    let particles = [];
+
+    function resizeFxCanvas() {
+      fxCanvas.width = window.innerWidth;
+      fxCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeFxCanvas);
+    resizeFxCanvas();
+
+    function triggerWinFX() {
+      for (let i = 0; i < 70; i++) {
+        particles.push({
+          x: fxCanvas.width / 2,
+          y: fxCanvas.height / 2,
+          vx: (Math.random() - 0.5) * 14,
+          vy: (Math.random() - 0.7) * 16,
+          size: Math.random() * 8 + 4,
+          color: ['#facc15', '#fb923c', '#22c55e', '#ffffff'][Math.floor(Math.random() * 4)],
+          life: 1
+        });
+      }
+    }
+
+    function updateParticles() {
+      fxCtx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+      particles.forEach((p, idx) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.35;
+        p.life -= 0.02;
+
+        fxCtx.fillStyle = p.color;
+        fxCtx.globalAlpha = Math.max(0, p.life);
+        fxCtx.beginPath();
+        fxCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        fxCtx.fill();
+
+        if (p.life <= 0) particles.splice(idx, 1);
+      });
+      requestAnimationFrame(updateParticles);
+    }
+    requestAnimationFrame(updateParticles);
+
+    /* ===================================================================
+       7. LOJA PIX COM CÓDIGOS REAIS INTEGRADOS
+       =================================================================== */
+    const PIX_PACKAGES = [
+      {
+        id: 0,
+        title: "Pacote R$ 5,00 (500 Moedas)",
+        price: "R$ 5,00",
+        coins: 500,
+        payload: "00020126780014br.gov.bcb.pix0136fecf7a65-f4d2-4add-b7a8-98f58e2c3dfd0216Compra de moedas27600016BR.COM.PAGSEGURO0136D8E8C58B-DB86-4F59-AD3D-FA9E4DD3070452048999530398654045.005802BR5925SERGIO LUIS SANTOS BRASIL6015Sao Francisco d62290525PAGS00000050026102310405563047CB0"
+      },
+      {
+        id: 1,
+        title: "Pacote R$ 10,00 (1.200 Moedas)",
+        price: "R$ 10,00",
+        coins: 1200,
+        payload: "00020126760014br.gov.bcb.pix0136fecf7a65-f4d2-4add-b7a8-98f58e2c3dfd0214Comprar Moedas27600016BR.COM.PAGSEGURO01369EBB1558-36B4-4859-9C37-FC44C92EC8B3520489995303986540510.005802BR5925SERGIO LUIS SANTOS BRASIL6015Sao Francisco d62290525PAGS000001000261023103793630429BF"
+      },
+      {
+        id: 2,
+        title: "Pacote R$ 20,00 (3.000 Moedas VIP)",
+        price: "R$ 20,00",
+        coins: 3000,
+        payload: "00020126760014br.gov.bcb.pix0136fecf7a65-f4d2-4add-b7a8-98f58e2c3dfd0214comprar moedas27600016BR.COM.PAGSEGURO0136FE432DC9-2F7F-4C7D-9FA0-3C20E92F9E37520489995303986540520.005802BR5925SERGIO LUIS SANTOS BRASIL6015Sao Francisco d62290525PAGS0000020002610231042146304FC36"
+      }
+    ];
+
+    let selectedPixIndex = 0;
+
+    function selectPixPackage(index) {
+      selectedPixIndex = index;
+      const pkg = PIX_PACKAGES[index];
+
+      // Destaque visual do botão selecionado
+      for (let i = 0; i < 3; i++) {
+        const btn = document.getElementById(`pixBtn${i}`);
+        if (btn) {
+          if (i === index) {
+            btn.className = "pix-pkg-btn p-2 bg-emerald-800 border-2 border-yellow-400 rounded-2xl flex flex-col items-center scale-105 transition-all shadow-lg";
+          } else {
+            btn.className = "pix-pkg-btn p-2 bg-emerald-950 border-2 border-emerald-800 rounded-2xl flex flex-col items-center transition-all opacity-70 hover:opacity-100";
+          }
+        }
+      }
+
+      // Preenche dados do pacote
+      document.getElementById('pixSelectedTitle').innerText = pkg.title;
+      const inputEl = document.getElementById('pixPayloadInput');
+      if (inputEl) inputEl.value = pkg.payload;
+      document.getElementById('copyStatusText').innerText = '';
+
+      // Gera Imagem do QR Code instantaneamente
+      const qrImg = document.getElementById('qrcodeImg');
+      if (qrImg) {
+        qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(pkg.payload)}`;
+      }
+    }
+
+    async function copyPixCode() {
+      const input = document.getElementById('pixPayloadInput');
+      if (!input) return;
+      const text = input.value;
+
+      let copied = false;
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
+          await navigator.clipboard.writeText(text);
+          copied = true;
+        } catch (e) {
+          copied = false;
+        }
+      }
+
+      if (!copied) {
+        input.select();
+        input.setSelectionRange(0, 99999);
+        try {
+          document.execCommand('copy');
+          copied = true;
+        } catch (err) {
+          copied = false;
+        }
+      }
+
+      const statusEl = document.getElementById('copyStatusText');
+      if (copied) {
+        statusEl.className = "text-[11px] text-yellow-300 font-bold mt-1 h-4 transition-all";
+        statusEl.innerText = "✅ Código PIX copiado com sucesso!";
+        audio.playClick();
+      } else {
+        statusEl.className = "text-[11px] text-red-400 font-bold mt-1 h-4 transition-all";
+        statusEl.innerText = "Selecione o texto acima para copiar.";
+      }
+    }
+
+    /* ===================================================================
+       8. ATUALIZAÇÕES DA INTERFACE E EVENTOS
+       =================================================================== */
+    function updateUI() {
+      document.getElementById('balanceDisplay').innerText = state.balance;
+      document.getElementById('lastWinDisplay').innerText = `+${state.lastWin}`;
+    }
+
+    function showWinBanner(text, colorClass) {
+      const bannerText = document.getElementById('winBannerText');
+      bannerText.className = `text-xs sm:text-sm font-bold tracking-wide text-center ${colorClass}`;
+      bannerText.innerText = text;
+    }
+
+    function updateAutoSpinUI() {
+      const btn = document.getElementById('btnAutoSpin');
+      const text = document.getElementById('autoSpinText');
+      if (state.autoSpin) {
+        btn.classList.remove('bg-emerald-800');
+        btn.classList.add('bg-amber-600', 'border-amber-300');
+        text.innerText = 'AUTO ON';
+      } else {
+        btn.classList.remove('bg-amber-600', 'border-amber-300');
+        btn.classList.add('bg-emerald-800');
+        text.innerText = 'AUTO';
+      }
+    }
+
+    function showBigWinModal(mult, winAmt) {
+      document.getElementById('bigWinMultiplierText').innerText = `Multiplicador ${mult}x!`;
+      document.getElementById('bigWinAmountText').innerText = `+${winAmt} Moedas`;
+      document.getElementById('bigWinModal').classList.remove('hidden');
+    }
+
+    /* Event Listeners Principais */
+    document.getElementById('btnStartGame').addEventListener('click', () => {
+      document.getElementById('splashScreen').classList.add('hidden');
+      audio.playClick();
+    });
+
+    document.getElementById('btnSpin').addEventListener('click', () => {
+      spin();
+    });
+
+    document.getElementById('btnAutoSpin').addEventListener('click', () => {
+      audio.playClick();
+      state.autoSpin = !state.autoSpin;
+      updateAutoSpinUI();
+      if (state.autoSpin && !state.isSpinning) {
+        spin();
+      }
+    });
+
+    document.querySelectorAll('.bet-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        audio.playClick();
+        document.querySelectorAll('.bet-btn').forEach(b => {
+          b.className = 'bet-btn px-3 py-1.5 rounded-lg font-black text-xs bg-emerald-800 text-emerald-200 border border-emerald-600';
+        });
+        e.target.className = 'bet-btn px-3 py-1.5 rounded-lg font-black text-xs bg-amber-500 text-amber-950 shadow border border-amber-300';
+        state.currentBet = parseInt(e.target.dataset.bet);
+      });
+    });
+
+    /* Eventos do Modal PIX */
+    document.getElementById('btnRecharge').addEventListener('click', () => {
+      audio.playClick();
+      document.getElementById('rechargeModal').classList.remove('hidden');
+      selectPixPackage(selectedPixIndex);
+    });
+
+    document.getElementById('btnCloseRecharge').addEventListener('click', () => {
+      document.getElementById('rechargeModal').classList.add('hidden');
+    });
+
+    document.getElementById('btnConfirmPixPayment').addEventListener('click', () => {
+      const pkg = PIX_PACKAGES[selectedPixIndex];
+      state.balance += pkg.coins;
+      updateUI();
+      audio.playWin(20);
+      triggerWinFX();
+      document.getElementById('rechargeModal').classList.add('hidden');
+      showWinBanner(`🎉 Pagamento PIX confirmado! +${pkg.coins} moedas creditadas!`, 'text-yellow-300 font-bold');
+    });
+
+    document.getElementById('btnFreeCoins').addEventListener('click', () => {
+      audio.playWin(15);
+      state.balance += 200;
+      updateUI();
+      document.getElementById('rechargeModal').classList.add('hidden');
+      showWinBanner('🎁 Bônus grátis resgatado! +200 moedas.', 'text-yellow-300 font-bold');
+    });
+
+    document.getElementById('btnToggleSound').addEventListener('click', () => {
+      state.soundEnabled = !state.soundEnabled;
+      document.getElementById('soundIcon').innerText = state.soundEnabled ? '🔊' : '🔇';
+      if (state.soundEnabled) audio.playClick();
+    });
+
+    /* Modais Auxiliares */
+    document.getElementById('btnPaytable').addEventListener('click', () => {
+      audio.playClick();
+      document.getElementById('paytableModal').classList.remove('hidden');
+    });
+    document.getElementById('btnClosePaytable').addEventListener('click', () => {
+      document.getElementById('paytableModal').classList.add('hidden');
+    });
+    document.getElementById('btnOkPaytable').addEventListener('click', () => {
+      document.getElementById('paytableModal').classList.add('hidden');
+    });
+
+    document.getElementById('btnHistory').addEventListener('click', () => {
+      audio.playClick();
+      renderHistoryList();
+      document.getElementById('historyModal').classList.remove('hidden');
+    });
+    document.getElementById('btnCloseHistory').addEventListener('click', () => {
+      document.getElementById('historyModal').classList.add('hidden');
+    });
+    document.getElementById('btnClearHistory').addEventListener('click', () => {
+      audio.playClick();
+      state.history = [];
+      renderHistoryList();
+    });
+
+    document.getElementById('btnCloseBigWin').addEventListener('click', () => {
+      audio.playClick();
+      document.getElementById('bigWinModal').classList.add('hidden');
+    });
+
+    function renderHistoryList() {
+      const container = document.getElementById('historyList');
+      if (state.history.length === 0) {
+        container.innerHTML = '<p class="text-xs text-emerald-400 text-center py-4">Nenhuma rodada registrada ainda.</p>';
+        return;
+      }
+
+      container.innerHTML = state.history.map((h, i) => `
+        <div class="flex items-center justify-between bg-black/40 p-2 rounded-xl border border-emerald-800 text-xs">
+          <div>
+            <span class="text-emerald-300 font-bold">#${state.history.length - i}</span>
+            <span class="text-emerald-500 ml-1">${h.time}</span>
+            <span class="block text-[10px] text-emerald-400">Aposta: ${h.bet} moedas</span>
+          </div>
+          <div class="text-right">
+            <span class="font-black ${h.win > 0 ? 'text-yellow-300' : 'text-gray-400'}">
+              ${h.win > 0 ? `+${h.win}` : '0'} Moedas
+            </span>
+            <span class="block text-[10px] text-amber-400">${h.mult > 0 ? `${h.mult}x` : 'Sem prêmio'}</span>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    /* Inicialização */
+    window.addEventListener('load', () => {
+      initReels();
+      updateUI();
+      selectPixPackage(0);
+    });
+  </script>
+</body>
+</html>
